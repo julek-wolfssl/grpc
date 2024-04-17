@@ -67,7 +67,7 @@ std::string SHA256Hex(const std::string& str) {
   return absl::BytesToHexString(hash_str);
 }
 
-std::string HMAC(const std::string& key, const std::string& msg) {
+std::string gHMAC(const std::string& key, const std::string& msg) {
   unsigned int len;
   unsigned char digest[EVP_MAX_MD_SIZE];
   HMAC(EVP_sha256(), key.c_str(), key.length(),
@@ -212,12 +212,12 @@ std::map<std::string, std::string> AwsRequestSigner::GetSignedRequestHeaders() {
   // TASK 3: Task 3: Calculate the signature for AWS Signature Version 4
   // https://docs.aws.amazon.com/general/latest/gr/sigv4-calculate-signature.html
   // 1. Derive your signing key.
-  std::string date = HMAC("AWS4" + secret_access_key_, request_date_short);
-  std::string region = HMAC(date, region_);
-  std::string service = HMAC(region, service_name);
-  std::string signing = HMAC(service, "aws4_request");
+  std::string date = gHMAC("AWS4" + secret_access_key_, request_date_short);
+  std::string region = gHMAC(date, region_);
+  std::string service = gHMAC(region, service_name);
+  std::string signing = gHMAC(service, "aws4_request");
   // 2. Calculate the signature.
-  std::string signature_str = HMAC(signing, string_to_sign);
+  std::string signature_str = gHMAC(signing, string_to_sign);
   std::string signature = absl::BytesToHexString(signature_str);
   // TASK 4: Add the signature to the HTTP request
   // https://docs.aws.amazon.com/general/latest/gr/sigv4-add-signature-to-request.html

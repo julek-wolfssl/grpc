@@ -903,6 +903,13 @@ static int NullVerifyCallback(int /*preverify_ok*/, X509_STORE_CTX* /*ctx*/) {
   return 1;
 }
 
+#ifdef OPENSSL_IS_WOLFSSL
+static void free_root_cert(void* data) {
+    if (data)
+        X509_free((X509*)data);
+}
+#endif
+
 static int RootCertExtractCallback(int preverify_ok, X509_STORE_CTX* ctx) {
   if (ctx == nullptr) {
     return preverify_ok;
@@ -961,8 +968,15 @@ static int RootCertExtractCallback(int preverify_ok, X509_STORE_CTX* ctx) {
   if (ssl == nullptr) {
     return preverify_ok;
   }
+#ifndef OPENSSL_IS_WOLFSSL
   int success =
       SSL_set_ex_data(ssl, g_ssl_ex_verified_root_cert_index, root_cert);
+#else
+  int success = 0;
+  if (X509_up_ref(root_cert) == 1)
+      success = wolfSSL_set_ex_data_with_cleanup(ssl,
+          g_ssl_ex_verified_root_cert_index, root_cert, free_root_cert);
+#endif
   if (success == 0) {
     gpr_log(GPR_INFO, "Could not set verified root cert in SSL's ex_data");
   }
@@ -2183,6 +2197,8 @@ tsi_result tsi_create_ssl_client_handshaker_factory_with_options(
     X509_VERIFY_PARAM* param = X509_STORE_get0_param(cert_store);
     X509_VERIFY_PARAM_set_flags(
         param, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
+    X509_STORE_set_flags(cert_store,
+            X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
   } else if (options->crl_directory != nullptr &&
              strcmp(options->crl_directory, "") != 0) {
     X509_STORE* cert_store = SSL_CTX_get_cert_store(ssl_context);
@@ -2194,6 +2210,8 @@ tsi_result tsi_create_ssl_client_handshaker_factory_with_options(
       X509_VERIFY_PARAM* param = X509_STORE_get0_param(cert_store);
       X509_VERIFY_PARAM_set_flags(
           param, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
+      X509_STORE_set_flags(cert_store,
+              X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
     }
   }
 #endif
@@ -2379,6 +2397,8 @@ tsi_result tsi_create_ssl_server_handshaker_factory_with_options(
         X509_VERIFY_PARAM* param = X509_STORE_get0_param(cert_store);
         X509_VERIFY_PARAM_set_flags(
             param, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
+        X509_STORE_set_flags(cert_store,
+                X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
       } else if (options->crl_directory != nullptr &&
                  strcmp(options->crl_directory, "") != 0) {
         X509_STORE* cert_store = SSL_CTX_get_cert_store(impl->ssl_contexts[i]);
@@ -2390,6 +2410,8 @@ tsi_result tsi_create_ssl_server_handshaker_factory_with_options(
           X509_VERIFY_PARAM* param = X509_STORE_get0_param(cert_store);
           X509_VERIFY_PARAM_set_flags(
               param, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
+          X509_STORE_set_flags(cert_store,
+                  X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
         }
       }
 #endif
